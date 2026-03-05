@@ -1,0 +1,118 @@
+name: PolyDev Coach CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: registry.digitalocean.com
+  BACKEND_IMAGE: ${{ secrets.DO_REGISTRY_NAME }}/polydev-coach-backend
+  FRONTEND_IMAGE: ${{ secrets.DO_REGISTRY_NAME }}/polydev-coach-frontend
+
+jobs:
+  # ── Backend: Lint + Test ───────────────────────────────────────────────────
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Lint with pylint
+        run: |
+          pylint main.py agents/ parsers/ models/ config.py \
+            --disable=C0114,C0115,C0116,R0903 \
+            --fail-under=7.0
+        continue-on-error: true  # Non-blocking for now
+
+      - name: Run tests
+        env:
+          # Dummy values so config.py loads — tests mock the actual API calls
+          GRADIENT_API_KEY: test_key
+          ANALYZER_AGENT_ID: test-agent-id
+          COACH_AGENT_ID: test-agent-id
+          REFACTOR_AGENT_ID: test-agent-id
+          VALIDATOR_AGENT_ID: test-agent-id
+          OPTIMIZER_AGENT_ID: test-agent-id
+        run: pytest tests/ -v --tb=short
+
+  # ── Frontend: Build check ─────────────────────────────────────────────────
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_URL: https://placeholder.ondigitalocean.app
+        run: npm run build
+
+  # ── Deploy to DigitalOcean App Platform ───────────────────────────────────
+  deploy:
+    name: Deploy to DigitalOcean
+    needs: [backend-test, frontend-build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_ACCESS_TOKEN }}
+
+      - name: Deploy app spec to App Platform
+        run: |
+          doctl apps update ${{ secrets.DO_APP_ID }} \
+            --spec .do/app.yaml \
+            --wait
+        # If app doesn't exist yet, create it:
+        # doctl apps create --spec .do/app.yaml --wait
+
+      - name: Get app URL
+        run: |
+          APP_URL=$(doctl apps get ${{ secrets.DO_APP_ID }} --format LiveURL --no-header)
+          echo "✅ Deployed to: $APP_URL"
+          echo "APP_URL=$APP_URL" >> $GITHUB_ENV
+
+      - name: Health check
+        run: |
+          sleep 30  # Wait for deployment to propagate
+          curl -f "${APP_URL}/health" || exit 1
+          echo "✅ Health check passed"
