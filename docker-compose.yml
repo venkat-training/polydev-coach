@@ -1,17 +1,28 @@
+# PolyDev Coach — Local Development Docker Compose
+#
+# For local development only.
+# Production deploys to:
+#   Backend  → AWS App Runner  (see infra/apprunner.yaml)
+#   Frontend → AWS S3 + CloudFront  (see .github/workflows/ci-cd.yml)
+#
+# Usage:
+#   cp backend/.env.example backend/.env   # fill in AWS credentials
+#   docker-compose up --build
+
 version: "3.9"
 
 services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8000:8080"
     env_file:
-      - ./backend/.env
+      - ./backend/.env      # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, etc.
     volumes:
-      - ./backend:/app  # Hot reload in dev
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - ./backend:/app      # Hot reload in development
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -20,7 +31,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://localhost:8000
+        VITE_API_URL: http://localhost:8000   # Points to local backend
     ports:
       - "3000:80"
     depends_on:

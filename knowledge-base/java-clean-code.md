@@ -1,6 +1,8 @@
 # Java Enterprise Clean Code & Best Practices
 
-This knowledge base is used by the PolyDev Coach AI agents for Java coaching.
+This knowledge base is used by the PolyDev Coach AI agents (running on Amazon Nova via
+AWS Bedrock) for Java coaching. It is uploaded to Amazon S3 and indexed by Amazon Bedrock
+Knowledge Bases for RAG retrieval by the Nova Lite Coach agent.
 
 ---
 
@@ -36,7 +38,7 @@ catch (Exception e) { ... }  // Too broad
 
 **Good:**
 ```java
-catch (HttpClientErrorException e) { 
+catch (HttpClientErrorException e) {
     // Handle 4xx responses
 } catch (HttpServerErrorException e) {
     // Handle 5xx responses
@@ -141,9 +143,9 @@ class UserService {
 }
 
 // Good: each class has one job
-class UserService { void createUser(...) { ... } }
-class EmailService { String sendEmail(...) { ... } }
-class AuditLogger { void logAudit(...) { ... } }
+class UserService   { void createUser(...) { ... } }
+class EmailService  { String sendEmail(...) { ... } }
+class AuditLogger   { void logAudit(...) { ... } }
 ```
 
 ### Dependency Inversion
@@ -157,8 +159,8 @@ class UserService {
 // Good: injected, testable
 class UserService {
     private final UserRepository repo;
-    
-    public UserService(UserRepository repo) {  // Constructor injection
+
+    public UserService(UserRepository repo) {
         this.repo = repo;
     }
 }
@@ -224,7 +226,8 @@ public class UserCache {
 ```
 
 ### Use java.util.concurrent
-Prefer `ExecutorService`, `CompletableFuture`, and `ConcurrentHashMap` over raw `Thread` and `synchronized`.
+Prefer `ExecutorService`, `CompletableFuture`, and `ConcurrentHashMap` over raw `Thread`
+and `synchronized`.
 
 ---
 

@@ -1,7 +1,9 @@
 # MuleSoft Integration Best Practices
 
-This knowledge base is used by the PolyDev Coach AI agents to provide accurate,
-reference-backed coaching on MuleSoft integration patterns.
+This knowledge base is used by the PolyDev Coach AI agents (running on Amazon Nova via
+AWS Bedrock) to provide accurate, reference-backed coaching on MuleSoft integration patterns.
+It is uploaded to Amazon S3 and indexed by Amazon Bedrock Knowledge Bases for RAG retrieval
+by the Nova Lite Coach agent.
 
 ---
 
@@ -50,7 +52,7 @@ All environment-specific values MUST be in `.properties` files referenced via `$
 **Bad:**
 ```xml
 <db:config name="DB_Config">
-  <db:my-sql-connection host="prod-db.company.com" 
+  <db:my-sql-connection host="prod-db.company.com"
                         user="admin" password="prod_password_123"/>
 </db:config>
 ```
@@ -58,7 +60,7 @@ All environment-specific values MUST be in `.properties` files referenced via `$
 **Good:**
 ```xml
 <db:config name="DB_Config">
-  <db:my-sql-connection host="${db.host}" 
+  <db:my-sql-connection host="${db.host}"
                         user="${db.user}" password="${secure::db.password}"/>
 </db:config>
 ```
@@ -74,7 +76,8 @@ db:
 **Reference:** MuleSoft Docs — Configuring Properties
 
 ### Secure Properties
-Use `${secure::property.name}` for passwords and secrets. Configure the Secure Properties module with a master key passed as a system property at runtime — never hardcoded.
+Use `${secure::property.name}` for passwords and secrets. Configure the Secure Properties module
+with a master key passed as a system property at runtime — never hardcoded.
 
 ---
 
@@ -127,14 +130,14 @@ Extract reusable logic into sub-flows:
 
 **Good:**
 ```xml
-<logger level="INFO" 
+<logger level="INFO"
         message="Order created | orderId=#[payload.orderId] | correlationId=#[correlationId]"
         category="com.company.orders"/>
 ```
 
 ### Always Include Correlation ID
 ```xml
-<logger level="INFO" 
+<logger level="INFO"
         message="Processing request | correlationId=#[correlationId] | path=#[attributes.requestPath]"/>
 ```
 
@@ -150,14 +153,16 @@ An orphaned flow is one that:
 - Is not triggered by an event source (HTTP listener, scheduler, etc.)
 - Is not a global error handler
 
-Orphaned flows waste memory and confuse developers. Remove them or add a comment explaining why they exist.
+Orphaned flows waste memory and confuse developers. Remove them or add a comment explaining
+why they exist. The mulesoft_package_validator detects these automatically.
 
 ---
 
 ## 6. APIkit & RAML
 
 ### Always Use APIkit Router
-When building API-led connectivity, use the APIkit router to validate incoming requests against your RAML spec automatically:
+When building API-led connectivity, use the APIkit router to validate incoming requests
+against your RAML spec automatically:
 
 ```xml
 <apikit:router config-ref="api-config"/>
@@ -192,7 +197,7 @@ payload.customer.email default "unknown@example.com"
 
 ## 8. Security Scanning Rules
 
-The mulesoft_package_validator checks for:
+The mulesoft_package_validator (integrated into PolyDev Coach) checks for:
 
 | Rule | Severity | Description |
 |------|----------|-------------|
@@ -209,5 +214,8 @@ The mulesoft_package_validator checks for:
 
 - **Connection Pooling**: Configure max-pool-size on DB and HTTP connectors
 - **Timeout Configuration**: Always set `responseTimeout` on HTTP requestors
-- **Batch Processing**: Use `<batch:job>` for bulk record processing — never loop with `<foreach>` over thousands of records
+- **Batch Processing**: Use `<batch:job>` for bulk record processing — never loop with
+  `<foreach>` over thousands of records
 - **Object Store**: Use persistent Object Store for state that must survive restarts
+- **Async Processing**: Use `<async>` scope for fire-and-forget operations that don't
+  need a response

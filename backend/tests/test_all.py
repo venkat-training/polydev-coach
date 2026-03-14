@@ -1,17 +1,27 @@
 """
-PolyDev Coach - Backend Tests
-Run with: pytest tests/ -v
+PolyDev Coach — Backend Tests
+Amazon Nova / AWS Bedrock variant.
+
+Run with:
+    pytest tests/ -v
+    pytest tests/ --cov=. --cov-report=html
+
+Tests cover:
+  - Python AST + pylint static parser
+  - Java regex static parser
+  - MuleSoft validator wrapper (normalise_findings)
+  - FastAPI endpoint validation (does not call Bedrock — unit tests only)
 """
-import json
 import os
 import sys
 import pytest
 
-# ── Ensure env vars are set before imports load config ────────────────────────
+# ── Stub AWS credentials so config.py loads without real keys ─────────────────
+# These are test-only values. Bedrock is never called in unit tests.
 os.environ.setdefault("AWS_REGION", "us-east-1")
-os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
-os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
-os.environ.setdefault("BEDROCK_KNOWLEDGE_BASE_ID", "test-kb-id")
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "test-key-id")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+os.environ.setdefault("BEDROCK_KNOWLEDGE_BASE_ID", "test-kb-id-00000000")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,6 +33,7 @@ from parsers.mulesoft_parser import _normalise_findings, _severity_from_keyword
 # ─── Python Parser Tests ──────────────────────────────────────────────────────
 
 class TestPythonParser:
+
     def test_detects_bare_except(self):
         code = """
 try:
@@ -32,19 +43,19 @@ except:
 """
         result = _ast_analysis(code)
         rules = [i["rule_id"] for i in result]
-        assert "BARE-EXCEPT" in rules
+        assert "BARE-EXCEPT" in rules, "Bare except not detected"
 
     def test_detects_hardcoded_password(self):
         code = 'password = "super_secret_123"\n'
         result = _ast_analysis(code)
         rules = [i["rule_id"] for i in result]
-        assert "HARDCODED-SECRET" in rules
+        assert "HARDCODED-SECRET" in rules, "Hardcoded password not detected"
 
     def test_detects_hardcoded_api_key(self):
         code = 'api_key = "sk-abc123xyz"\n'
         result = _ast_analysis(code)
         severities = [i["severity"] for i in result]
-        assert "CRITICAL" in severities
+        assert "CRITICAL" in severities, "CRITICAL severity not assigned"
 
     def test_syntax_error_detected(self):
         code = "def foo(\n  # unclosed paren"
@@ -52,7 +63,7 @@ except:
         assert len(result) > 0
         assert result[0]["rule_id"] == "SYNTAX-ERROR"
 
-    def test_clean_code_returns_no_issues(self):
+    def test_clean_code_returns_no_ast_issues(self):
         code = """
 import os
 import logging
@@ -64,26 +75,32 @@ def get_user(user_id: int) -> dict:
     return {"id": user_id}
 """
         result = _ast_analysis(code)
-        # Clean code should have no issues
-        assert len(result) == 0
+        assert len(result) == 0, f"Expected no issues, got: {result}"
 
-    def test_full_static_analysis_returns_dict(self):
+    def test_full_static_analysis_returns_correct_schema(self):
         code = 'password = "test"\ntry:\n    pass\nexcept:\n    pass\n'
         result = run_python_static_analysis(code)
         assert "issues" in result
         assert "issue_count" in result
         assert "overall_risk" in result
         assert isinstance(result["issues"], list)
+        assert result["issue_count"] == len(result["issues"])
 
-    def test_risk_level_high_for_critical(self):
+    def test_risk_level_high_for_critical_issue(self):
         code = 'password = "hardcoded_secret"\n'
         result = run_python_static_analysis(code)
         assert result["overall_risk"] == "HIGH"
+
+    def test_risk_level_low_for_clean_code(self):
+        code = "x = 1 + 1\n"
+        result = run_python_static_analysis(code)
+        assert result["overall_risk"] == "LOW"
 
 
 # ─── Java Parser Tests ────────────────────────────────────────────────────────
 
 class TestJavaParser:
+
     def test_detects_empty_catch(self):
         code = """
 try {
@@ -112,28 +129,49 @@ try {
         rules = [i["rule_id"] for i in result["issues"]]
         assert "JAVA-PRINT-STACK" in rules
 
-    def test_returns_correct_structure(self):
+    def test_returns_correct_schema(self):
         result = run_java_static_analysis("System.out.println('x');")
         assert "issues" in result
         assert "issue_count" in result
         assert "overall_risk" in result
+        assert result["issue_count"] == len(result["issues"])
+
+    def test_clean_java_returns_no_issues(self):
+        code = """
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class UserService {
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
+    public String getUser(int id) {
+        log.info("Fetching user {}", id);
+        return "user-" + id;
+    }
+}
+"""
+        result = run_java_static_analysis(code)
+        assert result["overall_risk"] == "LOW"
 
 
 # ─── MuleSoft Parser Tests ────────────────────────────────────────────────────
 
 class TestMulesoftParser:
+
     def test_severity_keywords_critical(self):
         assert _severity_from_keyword("hardcoded password detected") == "CRITICAL"
         assert _severity_from_keyword("API key in config") == "CRITICAL"
+        assert _severity_from_keyword("jwt token exposed") == "CRITICAL"
 
     def test_severity_keywords_warning(self):
-        assert _severity_from_keyword("orphaned flow") == "WARNING"
+        assert _severity_from_keyword("orphaned flow detected") == "WARNING"
         assert _severity_from_keyword("missing error handler") == "WARNING"
+        assert _severity_from_keyword("unused configuration") == "WARNING"
 
     def test_severity_keywords_info(self):
-        assert _severity_from_keyword("flow naming convention") == "INFO"
+        assert _severity_from_keyword("flow naming convention check") == "INFO"
 
-    def test_normalise_findings_security(self):
+    def test_normalise_security_warning(self):
         raw = {
             "security_warnings": [
                 {"location": "config.yaml:5", "issue": "Hardcoded password detected"}
@@ -143,8 +181,9 @@ class TestMulesoftParser:
         assert len(issues) == 1
         assert issues[0]["severity"] == "CRITICAL"
         assert issues[0]["type"] == "security"
+        assert "MULE-SEC" in issues[0]["id"]
 
-    def test_normalise_findings_orphans(self):
+    def test_normalise_orphaned_flows(self):
         raw = {
             "orphan_results": {
                 "orphaned_flows": ["unusedFlow", "anotherDeadFlow"]
@@ -153,50 +192,82 @@ class TestMulesoftParser:
         issues = _normalise_findings(raw)
         assert len(issues) == 2
         assert all(i["rule_id"] == "MULE-ORPHAN-FLOW" for i in issues)
+        assert all(i["severity"] == "WARNING" for i in issues)
 
-    def test_normalise_empty_raw(self):
-        issues = _normalise_findings({})
-        assert issues == []
+    def test_normalise_dependency_issues(self):
+        raw = {
+            "dependency_results": {
+                "unused_dependencies": ["com.example:unused-lib:1.0.0"]
+            }
+        }
+        issues = _normalise_findings(raw)
+        assert len(issues) == 1
+        assert issues[0]["severity"] == "INFO"
+        assert issues[0]["type"] == "dependencies"
 
+    def test_normalise_empty_raw_returns_empty_list(self):
+        assert _normalise_findings({}) == []
 
-# ─── Integration: FastAPI endpoint ───────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_health_endpoint():
-    """Test health check does not require Bedrock connectivity."""
-    from fastapi.testclient import TestClient
-    from main import app
-
-    with TestClient(app) as client:
-        response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "ok"
-
-
-@pytest.mark.asyncio
-async def test_review_endpoint_validation():
-    """Test that invalid language returns 422."""
-    from fastapi.testclient import TestClient
-    from main import app
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/review",
-            json={"code": "print('hello')", "language": "cobol"},  # Invalid
-        )
-    assert response.status_code == 422
+    def test_normalise_multiple_categories(self):
+        raw = {
+            "security_warnings": [{"location": "x", "issue": "password found"}],
+            "orphan_results": {"orphaned_flows": ["oldFlow"]},
+        }
+        issues = _normalise_findings(raw)
+        assert len(issues) == 2
+        severities = {i["severity"] for i in issues}
+        assert "CRITICAL" in severities
+        assert "WARNING" in severities
 
 
-@pytest.mark.asyncio
-async def test_review_endpoint_empty_code():
-    """Test that empty code returns 422."""
-    from fastapi.testclient import TestClient
-    from main import app
+# ─── FastAPI Endpoint Tests ───────────────────────────────────────────────────
 
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/review",
-            json={"code": "   ", "language": "python"},
-        )
-    assert response.status_code == 422
+class TestAPIEndpoints:
+
+    def test_health_endpoint_does_not_require_bedrock(self):
+        """Health check must pass without any Bedrock connection."""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        with TestClient(app) as client:
+            response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["version"] == "1.0.0"
+
+    def test_review_endpoint_rejects_invalid_language(self):
+        """Unknown languages must return 422 Unprocessable Entity."""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/review",
+                json={"code": "print('hello')", "language": "cobol"},
+            )
+        assert response.status_code == 422
+
+    def test_review_endpoint_rejects_empty_code(self):
+        """Whitespace-only code must return 422."""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/review",
+                json={"code": "   ", "language": "python"},
+            )
+        assert response.status_code == 422
+
+    def test_review_endpoint_rejects_oversized_code(self):
+        """Code exceeding MAX_CODE_LENGTH must return 413."""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/review",
+                json={"code": "x = 1\n" * 10000, "language": "python"},
+            )
+        assert response.status_code == 413

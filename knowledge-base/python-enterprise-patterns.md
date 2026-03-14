@@ -1,6 +1,8 @@
 # Python Enterprise Patterns & Best Practices
 
-This knowledge base is used by the PolyDev Coach AI agents for Python coaching.
+This knowledge base is used by the PolyDev Coach AI agents (running on Amazon Nova via
+AWS Bedrock) for Python coaching. It is uploaded to Amazon S3 and indexed by Amazon Bedrock
+Knowledge Bases for RAG retrieval by the Nova Lite Coach agent.
 
 ---
 
@@ -17,7 +19,7 @@ API_KEY = "sk-abc123"
 ```python
 import os
 DB_PASSWORD = os.environ["DB_PASSWORD"]  # Raises if missing — intentional
-API_KEY = os.environ.get("API_KEY")  # Returns None if missing
+API_KEY = os.environ.get("API_KEY")      # Returns None if missing
 ```
 
 **Reference:** OWASP — A02:2021 Cryptographic Failures; 12-Factor App §Config
@@ -30,7 +32,7 @@ from pydantic import BaseModel, EmailStr, validator
 class UserRequest(BaseModel):
     email: EmailStr
     name: str
-    
+
     @validator("name")
     def name_not_empty(cls, v):
         if not v.strip():
@@ -110,7 +112,7 @@ def save_users(users: list[ProcessedUser], db: Database) -> None:
 ```
 
 ### Function Length
-- Keep functions under 20-30 lines as a guideline
+- Keep functions under 20–30 lines as a guideline
 - If a function exceeds 50 lines, it almost certainly should be split
 
 ### Type Hints (Python 3.9+)
@@ -137,7 +139,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 logger.info("Processing user | user_id=%s | source=%s", user_id, source)
-logger.error("Failed to fetch user | user_id=%s | error=%s", user_id, str(exc), exc_info=True)
+logger.error("Failed to fetch user | user_id=%s", user_id, exc_info=True)
 ```
 
 ### Configure Logging at Application Root
@@ -227,7 +229,7 @@ def get_user(user_id: int, db: Database) -> dict:
 
 | Rule | Description |
 |------|-------------|
-| E501 | Max line length 79-120 chars |
+| E501 | Max line length 79–120 chars |
 | E711 | Compare to None with `is`, not `==` |
 | W291 | No trailing whitespace |
 | F401 | Remove unused imports |
@@ -239,16 +241,16 @@ def get_user(user_id: int, db: Database) -> dict:
 
 ```python
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 def test_get_user_returns_user_when_exists():
     # Arrange
     mock_db = MagicMock()
     mock_db.query.return_value = {"id": 1, "name": "Alice"}
-    
+
     # Act
     result = get_user(user_id=1, db=mock_db)
-    
+
     # Assert
     assert result["name"] == "Alice"
     mock_db.query.assert_called_once_with(1)
