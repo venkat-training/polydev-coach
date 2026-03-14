@@ -8,12 +8,10 @@ import sys
 import pytest
 
 # ── Ensure env vars are set before imports load config ────────────────────────
-os.environ.setdefault("GRADIENT_API_KEY", "test_key")
-os.environ.setdefault("ANALYZER_AGENT_ID", "test-uuid-1")
-os.environ.setdefault("COACH_AGENT_ID", "test-uuid-2")
-os.environ.setdefault("REFACTOR_AGENT_ID", "test-uuid-3")
-os.environ.setdefault("VALIDATOR_AGENT_ID", "test-uuid-4")
-os.environ.setdefault("OPTIMIZER_AGENT_ID", "test-uuid-5")
+os.environ.setdefault("AWS_REGION", "us-east-1")
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
+os.environ.setdefault("BEDROCK_KNOWLEDGE_BASE_ID", "test-kb-id")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -165,7 +163,7 @@ class TestMulesoftParser:
 
 @pytest.mark.asyncio
 async def test_health_endpoint():
-    """Test health check doesn't require Gradient connection."""
+    """Test health check does not require Bedrock connectivity."""
     from fastapi.testclient import TestClient
     from main import app
 

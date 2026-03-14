@@ -2,7 +2,7 @@
 PolyDev Coach — AWS Nova Agent Definitions
 Each agent calls a specific Nova model tier via Bedrock.
 System prompts are embedded here (no external agent service needed — 
-unlike Gradient AI, we call Bedrock directly with model + system prompt).
+using direct Bedrock model + system prompt calls).
 
 Model routing summary:
   Analyzer  → Nova Micro  ($0.035/$0.140 per 1M)  — structured JSON, fast

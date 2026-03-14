@@ -283,12 +283,12 @@ Only **3 files change**. Everything else (parsers, orchestrator, schemas, fronte
 
 | File | Action |
 |------|--------|
-| `backend/agents/gradient_client.py` | **Replace** with `bedrock_client.py` |
+| `backend/agents/bedrock_client.py` | **Use** as the Nova runtime client |
 | `backend/agents/agent_definitions.py` | **Replace** — same prompts, calls `call_nova_agent()` instead of `call_agent()` |
-| `backend/config.py` | **Replace** — AWS vars instead of Gradient vars |
+| `backend/config.py` | **Use** AWS env vars + Bedrock Knowledge Base ID |
 | `backend/requirements.txt` | **Replace** — `boto3` instead of `httpx` |
 | `backend/.env.example` | **Replace** — AWS vars |
-| `.github/workflows/ci-cd.yml` | **Replace** — App Runner deploy instead of doctl |
+| `.github/workflows/ci-cd.yml` | **Use** AWS-native CI/CD (App Runner + S3/CloudFront) |
 | `infra/setup_aws.py` | **New** — automated KB creation |
 | `infra/apprunner.yaml` | **New** — App Runner config |
 
