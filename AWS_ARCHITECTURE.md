@@ -277,7 +277,7 @@ Then create a CloudFront distribution pointing to the S3 bucket.
 
 ---
 
-## 7. File Changes from DigitalOcean → AWS
+## 7. File Changes from legacy platform → AWS
 
 Only **3 files change**. Everything else (parsers, orchestrator, schemas, frontend, tests) stays identical.
 

@@ -379,7 +379,7 @@ export default function App() {
               <div className="text-white font-bold text-lg" style={{ fontFamily: "'Syne', sans-serif" }}>
                 PolyDev <span className="text-violet-400">Coach</span>
               </div>
-              <div className="text-slate-500 text-xs">Multi-Agent AI Code Review · DigitalOcean Gradient AI</div>
+              <div className="text-slate-500 text-xs">Multi-Agent AI Code Review · Amazon Nova AI Hackathon</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -504,7 +504,7 @@ export default function App() {
                 PolyDev Coach uses a 6-agent AI pipeline to analyze code,
                 explain best practices, and generate refactored output.
                 <br /><br />
-                Powered by your <span className="text-violet-400">mulesoft_package_validator</span> + DigitalOcean Gradient AI.
+                Powered by your <span className="text-violet-400">mulesoft_package_validator</span> + Amazon Nova AI Hackathon.
               </div>
             </div>
           ) : (
