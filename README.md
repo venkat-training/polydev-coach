@@ -35,8 +35,8 @@ User Code Input
 ┌──────────┐  ┌──────────┐  ┌─────────────┐
 │ STATIC   │  │    AI    │  │  KNOWLEDGE  │
 │ ANALYZER │→ │ ANALYZER │  │    BASE     │
-│(mulesoft │  │  AGENT   │  │(RAG via DO  │
-│validator)│  │          │  │ AWS Bedrock)   │
+│(mulesoft │  │  AGENT   │  │(RAG via AWS │
+│validator)│  │          │  │   Bedrock)    │
 └──────────┘  └──────────┘  └─────────────┘
                    │
          ┌─────────┴──────────┐
@@ -170,23 +170,20 @@ docker-compose up --build
 
 1. Push this repo to GitHub (public)
 2. In AWS: **App Runner** → **Create service** → connect GitHub repo
-3. DO auto-detects both `backend/` and `frontend/` services
+3. Configure two App Runner services (backend API and frontend static app) or pair App Runner with S3/CloudFront
 4. Add environment variables from `.env.example` under **Settings → Env Vars**
 5. Deploy!
 
-### Option B: doctl CLI
+### Option B: AWS CLI
 ```bash
-# Install doctl
-brew install doctl  # or snap install doctl
-
 # Authenticate
-doctl auth init
+aws configure
 
-# Create app from spec
-doctl apps create --spec .do/app.yaml
+# Trigger App Runner deployment start
+aws apprunner start-deployment --service-arn <APP_RUNNER_SERVICE_ARN>
 
-# Update spec later
-doctl apps update <APP_ID> --spec .do/app.yaml
+# Sync frontend build to S3 (if using S3 + CloudFront)
+aws s3 sync frontend/dist/ s3://<FRONTEND_BUCKET> --delete
 ```
 
 ### GitHub Actions Secrets Required
@@ -194,9 +191,11 @@ Add these in **GitHub → Settings → Secrets → Actions**:
 
 | Secret | Description |
 |--------|-------------|
-| `DO_ACCESS_TOKEN` | AWS access key for deployment |
-| `DO_APP_ID` | App ID from `doctl apps list` |
-| `DO_REGISTRY_NAME` | Container registry name (optional) |
+| `AWS_ACCESS_KEY_ID` | AWS access key for deployment |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key for deployment |
+| `APP_RUNNER_CONNECTION_ARN` | App Runner GitHub connection ARN |
+| `FRONTEND_S3_BUCKET` | S3 bucket hosting frontend assets |
+| `CLOUDFRONT_DISTRIBUTION_ID` | CloudFront distribution for cache invalidation |
 
 ---
 

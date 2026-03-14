@@ -1,6 +1,6 @@
 """
 PolyDev Coach — AWS Bedrock / Amazon Nova Client
-Replaces gradient_client.py for the Amazon Nova hackathon submission.
+Amazon Nova client implementation for the hackathon submission.
 
 Nova model IDs used:
   Analyzer  → amazon.nova-micro-v1:0   (fast, cheap, structured JSON output)
