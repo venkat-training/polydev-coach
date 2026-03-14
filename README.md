@@ -1,12 +1,12 @@
 # 🛡️ PolyDev Coach
 
 > **Multi-Agent AI Code Review for MuleSoft, Python & Java**  
-> Built for the [DigitalOcean AWS Bedrock™ AI Hackathon](https://digitalocean.devpost.com/) · Deadline: March 18, 2026
+> Built for the [Amazon Nova AI Hackathon](https://amazon-nova.devpost.com/?ref_feature=challenge&ref_medium=discover&_gl=1*vy6cmh*_gcl_au*MTQxOTc4ODUxNC4xNzcyNzA0ODYx*_ga*NDQzMDk0MjQ5LjE3NzI3MDQ4NjM.*_ga_0YHJK3Y10M*czE3NzM0NzI0NzAkbzMkZzEkdDE3NzM0NzMwMzMkajYwJGwwJGgw) · Deadline: March 18, 2026
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![React 18](https://img.shields.io/badge/react-18-61dafb.svg)](https://react.dev/)
-[![DigitalOcean AWS Bedrock AI](https://img.shields.io/badge/powered%20by-AWS Bedrock%20AI-0080FF.svg)](https://docs.digitalocean.com/products/AWS Bedrock-ai-platform/)
+[![Amazon Nova AI Hackathon](https://img.shields.io/badge/powered%20by-AWS Bedrock%20AI-0080FF.svg)](https://aws.amazon.com/bedrock/)
 
 ---
 
@@ -85,13 +85,13 @@ The AI agents then enrich these findings with contextual coaching and generate r
 
 | Layer | Technology |
 |-------|------------|
-| **AI Platform** | DigitalOcean AWS Bedrock AI (5 agents + knowledge bases) |
+| **AI Platform** | Amazon Nova AI Hackathon (5 agents + knowledge bases) |
 | **Backend** | Python 3.11 + FastAPI |
 | **Frontend** | React 18 + Vite + TailwindCSS |
 | **MuleSoft Static Analysis** | mulesoft_package_validator (PyPI) |
 | **Python Static Analysis** | Python AST + pylint |
 | **Java Static Analysis** | Custom regex rules engine |
-| **Deployment** | DigitalOcean App Platform |
+| **Deployment** | AWS App Runner |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -101,7 +101,7 @@ The AI agents then enrich these findings with contextual coaching and generate r
 ### Prerequisites
 - Python 3.11+
 - Node.js 20+
-- DigitalOcean account with AWS Bedrock AI access
+- AWS account with Amazon Bedrock access
 
 ### 1. Clone the repository
 ```bash
@@ -111,7 +111,7 @@ cd polydev-coach
 
 ### 2. Set up AWS Bedrock AI agents
 
-In [DigitalOcean AWS Bedrock AI Platform](https://cloud.digitalocean.com/AWS Bedrock-ai):
+In [Amazon Nova AI Hackathon Platform](https://console.aws.amazon.com/bedrock/):
 
 1. Create a **Workspace** named `polydev-coach`
 2. Go to **Serverless Inference** → generate an API key
@@ -164,12 +164,12 @@ docker-compose up --build
 
 ---
 
-## 🚢 Deploy to DigitalOcean App Platform
+## 🚢 Deploy to AWS App Runner
 
 ### Option A: GitHub Integration (Recommended)
 
 1. Push this repo to GitHub (public)
-2. In DigitalOcean: **Apps** → **Create App** → connect GitHub repo
+2. In AWS: **App Runner** → **Create service** → connect GitHub repo
 3. DO auto-detects both `backend/` and `frontend/` services
 4. Add environment variables from `.env.example` under **Settings → Env Vars**
 5. Deploy!
@@ -194,7 +194,7 @@ Add these in **GitHub → Settings → Secrets → Actions**:
 
 | Secret | Description |
 |--------|-------------|
-| `DO_ACCESS_TOKEN` | DigitalOcean personal access token |
+| `DO_ACCESS_TOKEN` | AWS access key for deployment |
 | `DO_APP_ID` | App ID from `doctl apps list` |
 | `DO_REGISTRY_NAME` | Container registry name (optional) |
 
@@ -297,5 +297,5 @@ MIT — see [LICENSE](LICENSE)
 ## 🙏 Acknowledgements
 
 - [mulesoft_package_validator](https://github.com/venkat-training/mulesoft_package_validator) — the MuleSoft static analysis engine powering this tool
-- [DigitalOcean AWS Bedrock AI Platform](https://docs.digitalocean.com/products/AWS Bedrock-ai-platform/) — multi-agent infrastructure
-- Built for the [DigitalOcean AWS Bedrock™ AI Hackathon](https://digitalocean.devpost.com/)
+- [Amazon Nova AI Hackathon Platform](https://aws.amazon.com/bedrock/) — multi-agent infrastructure
+- Built for the [Amazon Nova AI Hackathon](https://amazon-nova.devpost.com/?ref_feature=challenge&ref_medium=discover&_gl=1*vy6cmh*_gcl_au*MTQxOTc4ODUxNC4xNzcyNzA0ODYx*_ga*NDQzMDk0MjQ5LjE3NzI3MDQ4NjM.*_ga_0YHJK3Y10M*czE3NzM0NzI0NzAkbzMkZzEkdDE3NzM0NzMwMzMkajYwJGwwJGgw)

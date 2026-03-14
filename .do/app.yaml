@@ -25,10 +25,10 @@ services:
       - key: GRADIENT_API_KEY
         scope: RUN_TIME
         type: SECRET
-        value: PLACEHOLDER  # Set in DO App Platform UI
+        value: PLACEHOLDER  # Set in your deployment platform secret manager
       - key: GRADIENT_BASE_URL
         scope: RUN_TIME
-        value: https://api.digitalocean.com/v1/gen-ai
+        value: https://bedrock-runtime.${AWS_REGION}.amazonaws.com
       - key: ANALYZER_AGENT_ID
         scope: RUN_TIME
         type: SECRET
@@ -57,7 +57,7 @@ services:
         value: INFO
       - key: ALLOWED_ORIGINS
         scope: RUN_TIME
-        value: ${APP_URL}  # DO injects this automatically
+        value: ${APP_URL}  # Inject this from your deployment platform
 
   # ── Frontend ─────────────────────────────────────────────────────────────
   - name: frontend

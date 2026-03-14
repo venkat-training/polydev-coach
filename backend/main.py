@@ -49,7 +49,7 @@ app = FastAPI(
     title="PolyDev Coach API",
     description=(
         "Multi-agent AI code review for MuleSoft, Python, and Java. "
-        "Powered by DigitalOcean Gradient AI Platform."
+        "Powered by Amazon Nova AI Hackathon."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -82,7 +82,7 @@ async def global_exception_handler(request, exc):
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
 def health_check():
-    """Liveness probe — used by DigitalOcean App Platform."""
+    """Liveness probe — used by AWS App Runner."""
     return HealthResponse(
         status="ok",
         version="1.0.0",
