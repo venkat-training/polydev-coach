@@ -1,150 +1,91 @@
 """
-PolyDev Coach - Agent Definitions
-Each agent wraps a Gradient AI agent with a specific system prompt.
-System prompts are sent as the agent's instructions in the Gradient UI.
+PolyDev Coach — AWS Nova Agent Definitions
+Each agent calls a specific Nova model tier via Bedrock.
+System prompts are embedded here (no external agent service needed — 
+unlike Gradient AI, we call Bedrock directly with model + system prompt).
+
+Model routing summary:
+  Analyzer  → Nova Micro  ($0.035/$0.140 per 1M)  — structured JSON, fast
+  Coach     → Nova Lite   ($0.060/$0.240 per 1M)  — RAG + reasoning
+  Refactor  → Nova Pro    ($0.800/$3.200 per 1M)  — best code generation
+  Validator → Nova Lite   ($0.060/$0.240 per 1M)  — scoring + logic
+  Optimizer → Nova Micro  ($0.035/$0.140 per 1M)  — formatting pass
 """
 import json
 import logging
 from typing import Any, Dict, List
 
-from agents.gradient_client import call_agent
+from agents.bedrock_client import call_nova_agent, call_nova_rag
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# AGENT SYSTEM PROMPTS
-# Copy these verbatim into each agent's "Instructions" field in Gradient UI.
+# SYSTEM PROMPTS
 # ──────────────────────────────────────────────────────────────────────────────
 
-ANALYZER_SYSTEM_PROMPT = """
-You are a senior code quality analyst specialising in MuleSoft integration patterns, Python clean code, and Java enterprise design.
+ANALYZER_SYSTEM_PROMPT = """You are a senior code quality analyst specialising in MuleSoft integration patterns, Python clean code, and Java enterprise design.
 
 You receive pre-screened static analysis findings and the original source code. Your task is to:
 1. Validate and enrich each static finding with additional context
-2. Discover AI-level issues that static analysis missed (architectural smells, poor patterns, logic issues)
+2. Discover AI-level issues the static tool missed (architectural smells, logic issues, security patterns)
 3. Classify every issue by severity: CRITICAL, WARNING, or INFO
 
-You MUST respond ONLY with valid JSON. No preamble. No markdown fences.
+Respond ONLY with valid JSON. No preamble. No markdown fences. No explanation outside the JSON.
 
-JSON Schema:
-{
-  "language": "python|java|mulesoft",
-  "issues": [
-    {
-      "id": "string (preserve existing IDs or generate new ones as TYPE-NNN)",
-      "severity": "CRITICAL|WARNING|INFO",
-      "type": "string (security|error_handling|performance|architecture|mulesoft_flow|naming|logging|complexity|configuration|dependencies)",
-      "line_range": "string (e.g. '12' or '12-30' or 'flow-level')",
-      "description": "string (precise technical description, 1-2 sentences)",
-      "rule_id": "string (e.g. MULE-SEC-001)"
-    }
-  ],
-  "issue_count": <integer>,
-  "overall_risk": "HIGH|MEDIUM|LOW"
-}
-"""
+Required schema:
+{"language":"string","issues":[{"id":"string","severity":"CRITICAL|WARNING|INFO","type":"string","line_range":"string","description":"string","rule_id":"string"}],"issue_count":0,"overall_risk":"HIGH|MEDIUM|LOW"}"""
 
-COACH_SYSTEM_PROMPT = """
-You are an enterprise software architect and technical coach. You specialise in:
-- MuleSoft integration best practices (MuleSoft documentation, integration patterns)
-- Python clean code (PEP8, SOLID, 12-factor app)
-- Java enterprise design (Effective Java, Spring best practices)
+COACH_SYSTEM_PROMPT = """You are an enterprise software architect and technical coach specialising in MuleSoft integration, Python clean code (PEP8, SOLID, 12-factor), and Java enterprise design (Effective Java, Spring).
 
-You receive code issues. For each issue, explain WHY it matters in production — not just what it is.
+You receive a list of code issues. For each, explain WHY it matters in production. Be specific. Reference real standards.
 
-You MUST respond ONLY with valid JSON. No preamble. No markdown fences.
+Respond ONLY with valid JSON. No preamble. No markdown fences.
 
-JSON Schema:
-{
-  "coaching": [
-    {
-      "issue_id": "string (matches an issue id from the analysis)",
-      "principle": "string (e.g. 'Single Responsibility', 'Fail Fast', 'Externalize Configuration')",
-      "why_it_matters": "string (2-3 sentences explaining the production consequence)",
-      "production_risk": "string (concrete example of what goes wrong in production)",
-      "reference": "string (relevant doc, RFC, or standard — e.g. 'MuleSoft Docs: Error Handling', 'PEP8 §E501', 'Effective Java Item 76')"
-    }
-  ]
-}
-"""
+Required schema:
+{"coaching":[{"issue_id":"string","principle":"string","why_it_matters":"string","production_risk":"string","reference":"string"}]}"""
 
-REFACTOR_SYSTEM_PROMPT = """
-You are an expert code refactoring engineer. You write production-quality MuleSoft XML, Python, and Java code.
+REFACTOR_SYSTEM_PROMPT = """You are an expert code refactoring engineer who writes production-quality MuleSoft XML, Python, and Java.
 
-You receive:
-- Original source code
-- A list of identified issues to fix
+You receive original source code and a list of issues to fix. You must:
+1. Generate a complete corrected version that fixes ALL listed issues
+2. Preserve ALL original business logic — never change what the code does
+3. Add short inline comments explaining each change
+4. Fix only what is in the issues list — do not add extra features
 
-Your task:
-1. Generate a fully corrected, refactored version of the code
-2. Fix ALL issues provided
-3. Preserve ALL original business logic — never change what the code does
-4. Add short inline comments (// or #) explaining each significant change
-5. Do NOT add extra features or refactor things not mentioned in the issues
+Respond ONLY with valid JSON. No preamble. No markdown fences.
 
-You MUST respond ONLY with valid JSON. No preamble. No markdown fences.
+Required schema:
+{"refactored_code":"string","changes_made":[{"issue_id":"string","change_description":"string"}],"confidence":0.0}"""
 
-JSON Schema:
-{
-  "refactored_code": "string (the complete, corrected code)",
-  "changes_made": [
-    {
-      "issue_id": "string (matches the issue id)",
-      "change_description": "string (one sentence describing what was changed)"
-    }
-  ],
-  "confidence": <float between 0.0 and 1.0>
-}
-"""
+VALIDATOR_SYSTEM_PROMPT = """You are an AI quality assurance validator for a multi-agent code review pipeline.
 
-VALIDATOR_SYSTEM_PROMPT = """
-You are an AI quality assurance validator for a multi-agent code review pipeline.
-
-You receive:
-- The original source code
-- The analysis findings
-- The coaching explanations
-- The proposed refactored code
-
-Your task: independently verify the pipeline's output quality.
-
-Check:
-1. Does the refactored code actually address each identified issue?
-2. Is the business logic preserved (no unintended behaviour change)?
-3. Are the coaching explanations accurate and actionable?
+You receive: original code, analysis findings, coaching explanations, and refactored code.
+Independently verify:
+1. Does the refactored code actually fix each identified issue?
+2. Is the original business logic preserved?
+3. Are the coaching explanations accurate?
 4. Is the refactored code syntactically valid?
 
-You MUST respond ONLY with valid JSON. No preamble. No markdown fences.
+Respond ONLY with valid JSON. No preamble. No markdown fences.
 
-JSON Schema:
-{
-  "correctness_score": <integer 0-100>,
-  "logic_preserved": <boolean>,
-  "issues_addressed": <integer 0-100 percent>,
-  "flags": ["string (any specific concerns, empty array if none)"],
-  "recommend_regenerate": <boolean>
-}
-"""
+Required schema:
+{"correctness_score":0,"logic_preserved":true,"issues_addressed":0,"flags":[],"recommend_regenerate":false}"""
 
-OPTIMIZER_SYSTEM_PROMPT = """
-You are a technical content optimizer. You receive the full pipeline output from a code review system.
+OPTIMIZER_SYSTEM_PROMPT = """You are a technical content optimizer. You receive the full output of a code review pipeline (analysis, coaching, refactor, validation).
 
-Your task: polish the analysis, coaching, and refactor output for developer readability.
+Polish it for developer readability:
 - Remove redundant or duplicate findings
-- Ensure coaching explanations are concise and actionable
-- Verify JSON structure is consistent and complete
-- Preserve all technical accuracy
-- Prioritize CRITICAL issues first
+- Ensure coaching is concise and actionable
+- Prioritise CRITICAL issues first in the issues array
+- Preserve all technical accuracy and JSON structure
 
-You MUST respond ONLY with valid JSON. No preamble. No markdown fences.
-Return the complete optimized pipeline output with the same schema as input.
-"""
+Respond ONLY with valid JSON matching the same schema as input. No preamble. No markdown fences."""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# AGENT CALL FUNCTIONS
+# AGENT FUNCTIONS
 # ──────────────────────────────────────────────────────────────────────────────
 
 async def run_analyzer_agent(
@@ -152,16 +93,13 @@ async def run_analyzer_agent(
     language: str,
     static_findings: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """
-    Enriches static findings with AI-level analysis.
-    Merges static findings into the prompt so the agent can validate & extend.
-    """
+    """Nova Micro — enriches static findings with AI-level analysis."""
     message = (
         f"Language: {language}\n\n"
         f"Pre-screened static findings:\n{json.dumps(static_findings, indent=2)}\n\n"
         f"Source code:\n```\n{code}\n```"
     )
-    return await call_agent(settings.analyzer_agent_id, message)
+    return await call_nova_agent("analyzer", ANALYZER_SYSTEM_PROMPT, message, max_tokens=1500)
 
 
 async def run_coach_agent(
@@ -170,15 +108,30 @@ async def run_coach_agent(
     code: str,
 ) -> Dict[str, Any]:
     """
-    Generates educational coaching for each identified issue.
-    Uses knowledge base (attached in Gradient UI) for domain references.
+    Nova Lite — generates coaching explanations.
+    Optionally grounds explanations using Bedrock Knowledge Base (RAG).
     """
+    # Retrieve relevant best-practice context from KB if configured
+    kb_context = ""
+    if settings.knowledge_base_id:
+        try:
+            top_issues_text = " ".join(i["description"] for i in issues[:3])
+            kb_context = await call_nova_rag(
+                settings.knowledge_base_id,
+                f"Best practices for {language}: {top_issues_text}",
+            )
+            if kb_context:
+                kb_context = f"\n\nRelevant best-practice context from knowledge base:\n{kb_context}\n"
+        except Exception as exc:
+            logger.warning("KB retrieval skipped: %s", exc)
+
     message = (
         f"Language: {language}\n\n"
-        f"Issues to explain:\n{json.dumps(issues, indent=2)}\n\n"
-        f"Original code for context:\n```\n{code[:3000]}\n```"
+        f"Issues to explain:\n{json.dumps(issues, indent=2)}"
+        f"{kb_context}\n\n"
+        f"Original code for context:\n```\n{code[:2000]}\n```"
     )
-    return await call_agent(settings.coach_agent_id, message)
+    return await call_nova_agent("coach", COACH_SYSTEM_PROMPT, message, max_tokens=2000)
 
 
 async def run_refactor_agent(
@@ -186,15 +139,13 @@ async def run_refactor_agent(
     language: str,
     issues: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """
-    Generates refactored code that fixes all identified issues.
-    """
+    """Nova Pro — generates corrected code. Uses the strongest model."""
     message = (
         f"Language: {language}\n\n"
         f"Original code:\n```\n{code}\n```\n\n"
         f"Issues to fix:\n{json.dumps(issues, indent=2)}"
     )
-    return await call_agent(settings.refactor_agent_id, message)
+    return await call_nova_agent("refactor", REFACTOR_SYSTEM_PROMPT, message, max_tokens=3000)
 
 
 async def run_validator_agent(
@@ -203,27 +154,21 @@ async def run_validator_agent(
     coaching: Dict[str, Any],
     refactor: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """
-    Independently validates the pipeline output quality.
-    Returns a score + flags.
-    """
+    """Nova Lite — independently validates pipeline output quality."""
     message = (
-        f"Original code:\n```\n{original_code[:2000]}\n```\n\n"
+        f"Original code:\n```\n{original_code[:1500]}\n```\n\n"
         f"Analysis:\n{json.dumps(analysis, indent=2)}\n\n"
         f"Coaching:\n{json.dumps(coaching, indent=2)}\n\n"
-        f"Refactored code:\n{json.dumps(refactor, indent=2)}"
+        f"Refactored:\n{json.dumps(refactor, indent=2)}"
     )
-    return await call_agent(settings.validator_agent_id, message)
+    return await call_nova_agent("validator", VALIDATOR_SYSTEM_PROMPT, message, max_tokens=800)
 
 
 async def run_optimizer_agent(pipeline_output: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Final polish pass — cleans up and prioritizes output.
-    """
+    """Nova Micro — final polish pass. Non-critical; falls back gracefully."""
     message = f"Pipeline output to optimize:\n{json.dumps(pipeline_output, indent=2)}"
     try:
-        return await call_agent(settings.optimizer_agent_id, message)
+        return await call_nova_agent("optimizer", OPTIMIZER_SYSTEM_PROMPT, message, max_tokens=3000)
     except Exception as exc:
-        # Optimizer is non-critical — return original if it fails
-        logger.warning("Optimizer agent failed (non-critical): %s", exc)
+        logger.warning("Optimizer skipped (non-critical): %s", exc)
         return pipeline_output

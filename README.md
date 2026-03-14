@@ -1,12 +1,12 @@
 # 🛡️ PolyDev Coach
 
 > **Multi-Agent AI Code Review for MuleSoft, Python & Java**  
-> Built for the [DigitalOcean Gradient™ AI Hackathon](https://digitalocean.devpost.com/) · Deadline: March 18, 2026
+> Built for the [DigitalOcean AWS Bedrock™ AI Hackathon](https://digitalocean.devpost.com/) · Deadline: March 18, 2026
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![React 18](https://img.shields.io/badge/react-18-61dafb.svg)](https://react.dev/)
-[![DigitalOcean Gradient AI](https://img.shields.io/badge/powered%20by-Gradient%20AI-0080FF.svg)](https://docs.digitalocean.com/products/gradient-ai-platform/)
+[![DigitalOcean AWS Bedrock AI](https://img.shields.io/badge/powered%20by-AWS Bedrock%20AI-0080FF.svg)](https://docs.digitalocean.com/products/AWS Bedrock-ai-platform/)
 
 ---
 
@@ -36,7 +36,7 @@ User Code Input
 │ STATIC   │  │    AI    │  │  KNOWLEDGE  │
 │ ANALYZER │→ │ ANALYZER │  │    BASE     │
 │(mulesoft │  │  AGENT   │  │(RAG via DO  │
-│validator)│  │          │  │ Gradient)   │
+│validator)│  │          │  │ AWS Bedrock)   │
 └──────────┘  └──────────┘  └─────────────┘
                    │
          ┌─────────┴──────────┐
@@ -85,7 +85,7 @@ The AI agents then enrich these findings with contextual coaching and generate r
 
 | Layer | Technology |
 |-------|------------|
-| **AI Platform** | DigitalOcean Gradient AI (5 agents + knowledge bases) |
+| **AI Platform** | DigitalOcean AWS Bedrock AI (5 agents + knowledge bases) |
 | **Backend** | Python 3.11 + FastAPI |
 | **Frontend** | React 18 + Vite + TailwindCSS |
 | **MuleSoft Static Analysis** | mulesoft_package_validator (PyPI) |
@@ -101,7 +101,7 @@ The AI agents then enrich these findings with contextual coaching and generate r
 ### Prerequisites
 - Python 3.11+
 - Node.js 20+
-- DigitalOcean account with Gradient AI access
+- DigitalOcean account with AWS Bedrock AI access
 
 ### 1. Clone the repository
 ```bash
@@ -109,9 +109,9 @@ git clone https://github.com/YOUR_USERNAME/polydev-coach.git
 cd polydev-coach
 ```
 
-### 2. Set up Gradient AI agents
+### 2. Set up AWS Bedrock AI agents
 
-In [DigitalOcean Gradient AI Platform](https://cloud.digitalocean.com/gradient-ai):
+In [DigitalOcean AWS Bedrock AI Platform](https://cloud.digitalocean.com/AWS Bedrock-ai):
 
 1. Create a **Workspace** named `polydev-coach`
 2. Go to **Serverless Inference** → generate an API key
@@ -131,7 +131,7 @@ In [DigitalOcean Gradient AI Platform](https://cloud.digitalocean.com/gradient-a
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env with your Gradient API key and agent UUIDs
+# Edit .env with your AWS Bedrock API key and agent UUIDs
 ```
 
 ### 4. Run backend
@@ -219,43 +219,46 @@ pytest tests/ --cov=. --cov-report=html
 ```
 polydev-coach/
 ├── backend/
-│   ├── main.py                     # FastAPI app + routes
-│   ├── config.py                   # Environment config
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   ├── .env.example                # ← Copy to .env
 │   ├── agents/
-│   │   ├── gradient_client.py      # Gradient AI HTTP client
-│   │   ├── agent_definitions.py    # Agent prompts + call functions
-│   │   └── orchestrator.py         # Pipeline controller
+│   │   ├── bedrock_client.py        ← AWS Nova client
+│   │   ├── agent_definitions.py     ← Nova model prompts + routing
+│   │   └── orchestrator.py          ← unchanged
 │   ├── parsers/
-│   │   ├── mulesoft_parser.py      # Wraps mulesoft_package_validator
-│   │   ├── python_parser.py        # AST + pylint analysis
-│   │   └── java_parser.py          # Regex rules engine
+│   │   ├── mulesoft_parser.py       ← unchanged
+│   │   ├── python_parser.py         ← unchanged
+│   │   └── java_parser.py           ← unchanged
 │   ├── models/
-│   │   └── schemas.py              # Pydantic models
-│   └── tests/
-│       └── test_all.py
-├── frontend/
+│   │   └── schemas.py               ← unchanged
+│   ├── tests/
+│   │   └── test_all.py              ← unchanged
+│   ├── main.py                      ← unchanged
+│   ├── config.py                    ← AWS version
+│   ├── requirements.txt             ← boto3 version
+│   ├── Dockerfile                   ← unchanged
+│   └── .env.example                 ← AWS vars only
+│
+├── frontend/                        ← entirely unchanged
 │   ├── src/
-│   │   ├── App.jsx                 # Full React application
-│   │   ├── main.jsx
-│   │   └── index.css
 │   ├── package.json
 │   ├── vite.config.js
-│   ├── tailwind.config.js
 │   └── Dockerfile
-├── knowledge-base/
-│   ├── mulesoft-best-practices.md  # Upload to Gradient Knowledge Base
+│
+├── infra/
+│   ├── setup_aws.py                 ← run once to create KB
+│   └── apprunner.yaml               ← App Runner config
+│
+├── knowledge-base/                  ← unchanged
+│   ├── mulesoft-best-practices.md
 │   ├── python-enterprise-patterns.md
 │   └── java-clean-code.md
-├── .do/
-│   └── app.yaml                    # DO App Platform spec
+│
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml               # GitHub Actions pipeline
-├── docker-compose.yml
-└── README.md
+│       └── ci-cd.yml                ← AWS version only
+│
+├── docker-compose.yml               ← unchanged (useful for local dev)
+├── .gitignore                       ← unchanged
+└── README.md                        ← update to AWS
 ```
 
 ---
@@ -273,7 +276,7 @@ polydev-coach/
 
 ---
 
-## 🔑 Key Gradient AI Features Used
+## 🔑 Key AWS Bedrock AI Features Used
 
 | Feature | How Used |
 |---------|----------|
@@ -294,5 +297,5 @@ MIT — see [LICENSE](LICENSE)
 ## 🙏 Acknowledgements
 
 - [mulesoft_package_validator](https://github.com/venkat-training/mulesoft_package_validator) — the MuleSoft static analysis engine powering this tool
-- [DigitalOcean Gradient AI Platform](https://docs.digitalocean.com/products/gradient-ai-platform/) — multi-agent infrastructure
-- Built for the [DigitalOcean Gradient™ AI Hackathon](https://digitalocean.devpost.com/)
+- [DigitalOcean AWS Bedrock AI Platform](https://docs.digitalocean.com/products/AWS Bedrock-ai-platform/) — multi-agent infrastructure
+- Built for the [DigitalOcean AWS Bedrock™ AI Hackathon](https://digitalocean.devpost.com/)

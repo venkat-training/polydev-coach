@@ -1,4 +1,4 @@
-name: PolyDev Coach CI/CD
+name: PolyDev Coach — AWS CI/CD
 
 on:
   push:
@@ -6,13 +6,8 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  REGISTRY: registry.digitalocean.com
-  BACKEND_IMAGE: ${{ secrets.DO_REGISTRY_NAME }}/polydev-coach-backend
-  FRONTEND_IMAGE: ${{ secrets.DO_REGISTRY_NAME }}/polydev-coach-frontend
-
 jobs:
-  # ── Backend: Lint + Test ───────────────────────────────────────────────────
+  # ── Backend Tests ─────────────────────────────────────────────────────────
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
@@ -21,40 +16,25 @@ jobs:
         working-directory: backend
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
-
-      - name: Lint with pylint
-        run: |
-          pylint main.py agents/ parsers/ models/ config.py \
-            --disable=C0114,C0115,C0116,R0903 \
-            --fail-under=7.0
-        continue-on-error: true  # Non-blocking for now
+        run: pip install -r requirements.txt pytest pytest-asyncio
 
       - name: Run tests
         env:
-          # Dummy values so config.py loads — tests mock the actual API calls
-          GRADIENT_API_KEY: test_key
-          ANALYZER_AGENT_ID: test-agent-id
-          COACH_AGENT_ID: test-agent-id
-          REFACTOR_AGENT_ID: test-agent-id
-          VALIDATOR_AGENT_ID: test-agent-id
-          OPTIMIZER_AGENT_ID: test-agent-id
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          BEDROCK_KNOWLEDGE_BASE_ID: test-kb-id
         run: pytest tests/ -v --tb=short
 
-  # ── Frontend: Build check ─────────────────────────────────────────────────
+  # ── Frontend Build ────────────────────────────────────────────────────────
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
@@ -63,56 +43,94 @@ jobs:
         working-directory: frontend
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
+      - run: npm ci
+      - run: npm run build
         env:
-          VITE_API_URL: https://placeholder.ondigitalocean.app
-        run: npm run build
+          VITE_API_URL: https://placeholder.awsapprunner.com
 
-  # ── Deploy to DigitalOcean App Platform ───────────────────────────────────
-  deploy:
-    name: Deploy to DigitalOcean
+  # ── Deploy Backend to AWS App Runner ─────────────────────────────────────
+  deploy-backend:
+    name: Deploy Backend (App Runner)
     needs: [backend-test, frontend-build]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          token: ${{ secrets.DO_ACCESS_TOKEN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-      - name: Deploy app spec to App Platform
-        run: |
-          doctl apps update ${{ secrets.DO_APP_ID }} \
-            --spec .do/app.yaml \
-            --wait
-        # If app doesn't exist yet, create it:
-        # doctl apps create --spec .do/app.yaml --wait
+      - name: Deploy to App Runner
+        uses: awslabs/amazon-app-runner-deploy@main
+        with:
+          service: polydev-coach-backend
+          source-connection-arn: ${{ secrets.APP_RUNNER_CONNECTION_ARN }}
+          repo: https://github.com/${{ github.repository }}
+          branch: main
+          runtime: PYTHON_311
+          build-command: pip install -r requirements.txt
+          start-command: uvicorn main:app --host 0.0.0.0 --port 8080
+          port: 8080
+          region: us-east-1
+          cpu: 1
+          memory: 2
+          wait-for-service-stability-seconds: 180
 
-      - name: Get app URL
-        run: |
-          APP_URL=$(doctl apps get ${{ secrets.DO_APP_ID }} --format LiveURL --no-header)
-          echo "✅ Deployed to: $APP_URL"
-          echo "APP_URL=$APP_URL" >> $GITHUB_ENV
+  # ── Deploy Frontend to S3 + CloudFront ───────────────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend (S3 + CloudFront)
+    needs: [backend-test, frontend-build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-      - name: Health check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build frontend
+        working-directory: frontend
         run: |
-          sleep 30  # Wait for deployment to propagate
-          curl -f "${APP_URL}/health" || exit 1
-          echo "✅ Health check passed"
+          npm ci
+          npm run build
+        env:
+          VITE_API_URL: ${{ secrets.BACKEND_URL }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync frontend/dist/ s3://${{ secrets.FRONTEND_S3_BUCKET }} \
+            --delete \
+            --cache-control "max-age=31536000,immutable" \
+            --exclude "index.html"
+          aws s3 cp frontend/dist/index.html s3://${{ secrets.FRONTEND_S3_BUCKET }}/index.html \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
