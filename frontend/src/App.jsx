@@ -2,8 +2,12 @@ import { useState, useCallback, useRef } from "react";
 
 // ─── API base URL ─────────────────────────────────────────────────────────────
 // Set VITE_API_URL at build time to point to your AWS App Runner backend URL.
-// Falls back to localhost for local development.
-const API_BASE = import.meta.env.VITE_API_URL || "";
+// In GitHub Codespaces we intentionally use same-origin (`""`) so Vite's
+// `/api` proxy handles backend routing and avoids browser CORS preflight issues.
+const configuredApiBase = (import.meta.env.VITE_API_URL || "").trim();
+const isCodespacesHost =
+  typeof window !== "undefined" && window.location.hostname.endsWith(".app.github.dev");
+const API_BASE = isCodespacesHost ? "" : configuredApiBase;
 
 // ─── Sample code snippets (pre-loaded with intentional issues for demo) ───────
 const SAMPLE_CODE = {
