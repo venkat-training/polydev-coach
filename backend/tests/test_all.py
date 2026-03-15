@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from parsers.python_parser import run_python_static_analysis, _ast_analysis
 from parsers.java_parser import run_java_static_analysis
-from parsers.mulesoft_parser import _normalise_findings, _severity_from_keyword
+from parsers.mulesoft_parser import _normalise_findings, _severity_from_keyword, _heuristic_xml_findings
 
 
 # ─── Python Parser Tests ──────────────────────────────────────────────────────
@@ -207,6 +207,23 @@ class TestMulesoftParser:
 
     def test_normalise_empty_raw_returns_empty_list(self):
         assert _normalise_findings({}) == []
+
+
+
+    def test_heuristic_xml_finds_common_risks(self):
+        xml = """<mule>
+  <flow name="unusedHelperFlow">
+    <db:my-sql-connection user="admin" password="secret"/>
+    <db:sql>SELECT * FROM users WHERE id = #[attributes.queryParams.id]</db:sql>
+    <logger level="DEBUG" message="debug"/>
+  </flow>
+</mule>"""
+        issues = _heuristic_xml_findings(xml)
+        rule_ids = {i["rule_id"] for i in issues}
+        assert "MULE-HARDCODED-PASSWORD" in rule_ids
+        assert "MULE-DEBUG-LOGGER" in rule_ids
+        assert "MULE-SQL-INJECTION-RISK" in rule_ids
+        assert "MULE-ORPHAN-FLOW" in rule_ids
 
     def test_normalise_multiple_categories(self):
         raw = {

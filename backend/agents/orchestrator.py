@@ -25,6 +25,29 @@ QUALITY_THRESHOLD = 75
 MAX_REFACTOR_RETRIES = 1
 
 
+def _to_int(value: Any, default: int = 0) -> int:
+    """Best-effort numeric coercion for LLM output fields."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalise_validation(validation: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure validation payload is consistently typed for the UI."""
+    flags = validation.get("flags")
+    if not isinstance(flags, list):
+        flags = [] if flags is None else [str(flags)]
+
+    return {
+        "correctness_score": max(0, min(100, _to_int(validation.get("correctness_score"), 0))),
+        "logic_preserved": bool(validation.get("logic_preserved", False)),
+        "issues_addressed": max(0, min(100, _to_int(validation.get("issues_addressed"), 0))),
+        "flags": [str(f) for f in flags],
+        "recommend_regenerate": bool(validation.get("recommend_regenerate", False)),
+    }
+
+
 async def run_review_pipeline(
     code: str,
     language: str,
@@ -63,6 +86,12 @@ async def run_review_pipeline(
             "overall_risk": static_result.get("overall_risk", "MEDIUM"),
         }
 
+    if not analysis.get("issues") and static_issues:
+        logger.warning("Analyzer returned no issues; falling back to static findings")
+        analysis["issues"] = static_issues
+        analysis["issue_count"] = len(static_issues)
+        analysis["overall_risk"] = static_result.get("overall_risk", analysis.get("overall_risk", "MEDIUM"))
+
     # Attach raw mulesoft validator output if available (for UI display)
     if language == "mulesoft" and "raw_validator_output" in static_result:
         analysis["mulesoft_static"] = static_result["raw_validator_output"]
@@ -98,7 +127,7 @@ async def run_review_pipeline(
     # ── Step 5: AI Validator ──────────────────────────────────────────────────
     logger.info("Step 5: Running validator agent")
     try:
-        validation = await run_validator_agent(code, analysis, coaching, refactor)
+        validation = _normalise_validation(await run_validator_agent(code, analysis, coaching, refactor))
     except Exception as exc:
         logger.error("Validator agent failed: %s", exc)
         validation = {
@@ -132,7 +161,7 @@ async def run_review_pipeline(
                 language,
                 analysis.get("issues", []),
             )
-            validation = await run_validator_agent(code, analysis, coaching, refactor)
+            validation = _normalise_validation(await run_validator_agent(code, analysis, coaching, refactor))
         except Exception as exc:
             logger.error("Retry failed: %s", exc)
             break
@@ -149,9 +178,14 @@ async def run_review_pipeline(
     optimized = await run_optimizer_agent(pipeline_output)
 
     # Merge optimized output back (optimizer may return full or partial)
-    final_analysis = optimized.get("analysis", analysis)
-    final_coaching = optimized.get("coaching", coaching)
-    final_refactor = optimized.get("refactor", refactor)
+    final_analysis = optimized.get("analysis") if isinstance(optimized.get("analysis"), dict) else analysis
+    final_coaching = optimized.get("coaching") if isinstance(optimized.get("coaching"), dict) else coaching
+    final_refactor = optimized.get("refactor") if isinstance(optimized.get("refactor"), dict) else refactor
+
+    if not final_analysis.get("issues") and analysis.get("issues"):
+        final_analysis["issues"] = analysis["issues"]
+        final_analysis["issue_count"] = len(analysis["issues"])
+        final_analysis["overall_risk"] = analysis.get("overall_risk", "MEDIUM")
 
     elapsed = round(time.monotonic() - start_time, 2)
     logger.info("Pipeline complete in %.2fs", elapsed)

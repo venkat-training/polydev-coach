@@ -234,24 +234,46 @@ function IssueCard({ issue, coaching }) {
         <span className="text-slate-500 text-sm mt-0.5">{expanded ? "▲" : "▼"}</span>
       </button>
 
-      {expanded && insight && (
+      {expanded && (
         <div className="border-t border-slate-700/50 bg-slate-900/40 px-4 py-3 text-sm space-y-2">
-          <div>
-            <span className="text-orange-400 font-bold text-xs uppercase tracking-wider">Principle</span>
-            <p className="text-slate-300 mt-0.5">{insight.principle}</p>
-          </div>
-          <div>
-            <span className="text-orange-400 font-bold text-xs uppercase tracking-wider">Why it matters</span>
-            <p className="text-slate-300 mt-0.5">{insight.why_it_matters}</p>
-          </div>
-          <div>
-            <span className="text-amber-400 font-bold text-xs uppercase tracking-wider">Production Risk</span>
-            <p className="text-slate-300 mt-0.5">{insight.production_risk}</p>
-          </div>
-          {insight.reference && (
-            <div className="text-xs text-slate-500">📚 {insight.reference}</div>
+          {insight ? (
+            <>
+              <div>
+                <span className="text-orange-400 font-bold text-xs uppercase tracking-wider">Principle</span>
+                <p className="text-slate-300 mt-0.5">{insight.principle}</p>
+              </div>
+              <div>
+                <span className="text-orange-400 font-bold text-xs uppercase tracking-wider">Why it matters</span>
+                <p className="text-slate-300 mt-0.5">{insight.why_it_matters}</p>
+              </div>
+              <div>
+                <span className="text-amber-400 font-bold text-xs uppercase tracking-wider">Production Risk</span>
+                <p className="text-slate-300 mt-0.5">{insight.production_risk}</p>
+              </div>
+              {insight.reference && (
+                <div className="text-xs text-slate-500">📚 {insight.reference}</div>
+              )}
+              <div className="text-xs text-slate-600 pt-1">Coached by Amazon Nova Lite</div>
+            </>
+          ) : (
+            <>
+              <div>
+                <span className="text-orange-400 font-bold text-xs uppercase tracking-wider">Issue details</span>
+                <p className="text-slate-300 mt-0.5">{issue.description}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500">Rule</span>
+                  <p className="text-slate-300">{issue.rule_id}</p>
+                </div>
+                <div>
+                  <span className="text-slate-500">Line</span>
+                  <p className="text-slate-300">{issue.line_range}</p>
+                </div>
+              </div>
+              <div className="text-xs text-slate-500">Detailed coaching is unavailable for this finding, but the issue metadata is shown above.</div>
+            </>
           )}
-          <div className="text-xs text-slate-600 pt-1">Coached by Amazon Nova Lite</div>
         </div>
       )}
     </div>

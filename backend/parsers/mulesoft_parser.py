@@ -9,6 +9,7 @@ pip install mulesoft-package-validator
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -112,6 +113,58 @@ def _normalise_findings(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
     return issues
 
 
+def _heuristic_xml_findings(xml_content: str) -> List[Dict[str, Any]]:
+    """Fallback heuristics for direct XML input when validator is unavailable or misses findings."""
+    issues: List[Dict[str, Any]] = []
+    idx = 1
+
+    def add_issue(severity: str, issue_type: str, line: int, description: str, rule_id: str) -> None:
+        nonlocal idx
+        issues.append({
+            "id": f"MULE-XML-{idx:03d}",
+            "severity": severity,
+            "type": issue_type,
+            "line_range": str(line),
+            "description": description,
+            "rule_id": rule_id,
+        })
+        idx += 1
+
+    for lineno, line in enumerate(xml_content.splitlines(), start=1):
+        if re.search(r'password\s*=\s*"[^"#\[]+', line, re.IGNORECASE):
+            add_issue("CRITICAL", "security", lineno, "Potential hardcoded database password detected in XML.", "MULE-HARDCODED-PASSWORD")
+        if re.search(r'user\s*=\s*"[^"#\[]+', line, re.IGNORECASE) and "secure::" not in line:
+            add_issue("WARNING", "security", lineno, "Potential hardcoded database user detected; prefer secure properties.", "MULE-HARDCODED-USER")
+        if re.search(r'<logger[^>]*level\s*=\s*"DEBUG"', line, re.IGNORECASE):
+            add_issue("WARNING", "logging", lineno, "DEBUG logger found in flow. Lower verbosity for production environments.", "MULE-DEBUG-LOGGER")
+        if re.search(r'<db:sql>.*queryParams.*</db:sql>', line, re.IGNORECASE):
+            add_issue("CRITICAL", "security", lineno, "Potential unsafe SQL construction from query params. Use parameterized queries.", "MULE-SQL-INJECTION-RISK")
+
+    flow_names = set(re.findall(r'<flow\s+name\s*=\s*"([^"]+)"', xml_content, flags=re.IGNORECASE))
+    flow_refs = set(re.findall(r'flow-ref\s+name\s*=\s*"([^"]+)"', xml_content, flags=re.IGNORECASE))
+    for flow in sorted(flow_names - flow_refs):
+        if flow.lower().startswith("unused") or "helper" in flow.lower() or "orphan" in flow.lower():
+            add_issue("WARNING", "architecture", 1, f"Flow '{flow}' appears to be unreferenced (possible orphan flow).", "MULE-ORPHAN-FLOW")
+
+    if "<flow" in xml_content and "error-handler" not in xml_content.lower():
+        add_issue("WARNING", "error_handling", 1, "No <error-handler> block detected in MuleSoft flow definitions.", "MULE-MISSING-ERROR-HANDLER")
+
+    return issues
+
+
+def _merge_issues(primary: List[Dict[str, Any]], secondary: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Merge issue lists while removing duplicates by key fields."""
+    merged: List[Dict[str, Any]] = []
+    seen = set()
+    for issue in [*primary, *secondary]:
+        key = (issue.get("rule_id"), issue.get("line_range"), issue.get("description"))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(issue)
+    return merged
+
+
 # ─── Public API ───────────────────────────────────────────────────────────────
 
 def run_static_analysis_on_xml(xml_content: str) -> Dict[str, Any]:
@@ -120,6 +173,7 @@ def run_static_analysis_on_xml(xml_content: str) -> Dict[str, Any]:
     Creates a temporary MuleSoft project structure around it.
     Returns normalised findings dict.
     """
+    heuristic_issues = _heuristic_xml_findings(xml_content)
     try:
         from mule_validator import (
             validate_flows_in_package,
@@ -130,7 +184,19 @@ def run_static_analysis_on_xml(xml_content: str) -> Dict[str, Any]:
             "mulesoft-package-validator not installed. "
             "Returning empty static analysis. Run: pip install mulesoft-package-validator"
         )
-        return {"security_warnings": [], "flow_validation": {}, "orphan_results": {}, "issues": []}
+        logger.warning("Falling back to heuristic MuleSoft XML analysis.")
+        issues = heuristic_issues
+        overall_risk = (
+            "HIGH" if any(i["severity"] == "CRITICAL" for i in issues)
+            else "MEDIUM" if any(i["severity"] == "WARNING" for i in issues)
+            else "LOW"
+        )
+        return {
+            "issues": issues,
+            "issue_count": len(issues),
+            "overall_risk": overall_risk,
+            "raw_validator_output": {},
+        }
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Minimal MuleSoft project structure
@@ -163,7 +229,7 @@ def run_static_analysis_on_xml(xml_content: str) -> Dict[str, Any]:
             api_results = {}
 
     raw = {**flow_results, **api_results}
-    issues = _normalise_findings(raw)
+    issues = _merge_issues(_normalise_findings(raw), heuristic_issues)
     overall_risk = (
         "HIGH" if any(i["severity"] == "CRITICAL" for i in issues)
         else "MEDIUM" if any(i["severity"] == "WARNING" for i in issues)
