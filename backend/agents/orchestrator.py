@@ -5,7 +5,7 @@ in the correct order, handles retries and fallbacks.
 """
 import logging
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from agents.agent_definitions import (
     run_analyzer_agent,
@@ -46,6 +46,63 @@ def _normalise_validation(validation: Dict[str, Any]) -> Dict[str, Any]:
         "flags": [str(f) for f in flags],
         "recommend_regenerate": bool(validation.get("recommend_regenerate", False)),
     }
+
+
+def _normalise_coaching(coaching: Any) -> Dict[str, List[Dict[str, str]]]:
+    """Normalise coaching payloads into {"coaching": [...]} for the UI."""
+    if isinstance(coaching, dict):
+        entries = coaching.get("coaching")
+    elif isinstance(coaching, list):
+        entries = coaching
+    else:
+        entries = []
+
+    if not isinstance(entries, list):
+        entries = []
+
+    normalised_entries: List[Dict[str, str]] = []
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+        normalised_entries.append(
+            {
+                "issue_id": str(item.get("issue_id") or item.get("issueId") or item.get("id") or ""),
+                "principle": str(item.get("principle") or ""),
+                "why_it_matters": str(item.get("why_it_matters") or item.get("whyItMatters") or ""),
+                "production_risk": str(item.get("production_risk") or item.get("productionRisk") or ""),
+                "reference": str(item.get("reference") or ""),
+            }
+        )
+
+    return {"coaching": normalised_entries}
+
+
+def _fallback_coaching(issues: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, str]]]:
+    """Generate deterministic coaching when the coach agent returns nothing."""
+    insights: List[Dict[str, str]] = []
+    for issue in issues:
+        issue_id = str(issue.get("id", ""))
+        severity = str(issue.get("severity", "INFO")).upper()
+        rule_id = str(issue.get("rule_id", "GENERAL"))
+        description = str(issue.get("description", "Issue identified during analysis."))
+
+        risk_blurb = {
+            "CRITICAL": "This can directly impact security, availability, or correctness in production.",
+            "WARNING": "This can degrade reliability and maintainability if left unresolved.",
+            "INFO": "This is a quality improvement opportunity that reduces future technical debt.",
+        }.get(severity, "This can create avoidable risk over time.")
+
+        insights.append(
+            {
+                "issue_id": issue_id,
+                "principle": f"Address {rule_id} findings as part of baseline engineering hygiene.",
+                "why_it_matters": description,
+                "production_risk": risk_blurb,
+                "reference": "Internal static analysis guidance",
+            }
+        )
+
+    return {"coaching": insights}
 
 
 async def run_review_pipeline(
@@ -111,6 +168,10 @@ async def run_review_pipeline(
     except Exception as exc:
         logger.error("Coach agent failed: %s", exc)
         coaching = {"coaching": []}
+    coaching = _normalise_coaching(coaching)
+    if not coaching.get("coaching") and analysis.get("issues"):
+        logger.warning("Coach returned no usable insights; generating deterministic fallback coaching")
+        coaching = _fallback_coaching(analysis.get("issues", []))
 
     # ── Step 4: AI Refactor ───────────────────────────────────────────────────
     logger.info("Step 4: Running refactor agent")
@@ -183,7 +244,9 @@ async def run_review_pipeline(
 
     # Merge optimized output back (optimizer may return full or partial)
     final_analysis = optimized.get("analysis") if isinstance(optimized.get("analysis"), dict) else analysis
-    final_coaching = optimized.get("coaching") if isinstance(optimized.get("coaching"), dict) else coaching
+    final_coaching = _normalise_coaching(optimized.get("coaching"))
+    if not final_coaching.get("coaching"):
+        final_coaching = coaching
     final_refactor = optimized.get("refactor") if isinstance(optimized.get("refactor"), dict) else refactor
 
     if not final_analysis.get("issues") and analysis.get("issues"):
