@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef } from "react";
 
 // ─── API base URL ─────────────────────────────────────────────────────────────
 // Set VITE_API_URL at build time to point to your AWS App Runner backend URL.
@@ -409,11 +409,11 @@ export default function App() {
 
   // Derived data
   const issues   = result?.analysis?.issues || [];
-  const coaching = useMemo(() => {
-    if (Array.isArray(result?.coaching?.coaching)) return result.coaching.coaching;
-    if (Array.isArray(result?.coaching)) return result.coaching;
-    return [];
-  }, [result]);
+  const coaching = Array.isArray(result?.coaching?.coaching)
+    ? result.coaching.coaching
+    : Array.isArray(result?.coaching)
+      ? result.coaching
+      : [];
   const changes  = result?.refactor?.changes_made || [];
   const validation = result?.validation || {};
 
