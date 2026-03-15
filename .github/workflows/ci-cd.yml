@@ -61,7 +61,7 @@ jobs:
     name: Deploy Backend (App Runner)
     needs: [backend-test, frontend-build]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.APP_RUNNER_CONNECTION_ARN != ''
 
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +94,7 @@ jobs:
     name: Deploy Frontend (S3 + CloudFront)
     needs: [backend-test, frontend-build]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.BACKEND_URL != '' && secrets.FRONTEND_S3_BUCKET != '' && secrets.CLOUDFRONT_DISTRIBUTION_ID != ''
 
     steps:
       - uses: actions/checkout@v4
