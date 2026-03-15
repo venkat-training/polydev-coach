@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 
 // ─── API base URL ─────────────────────────────────────────────────────────────
 // Set VITE_API_URL at build time to point to your AWS App Runner backend URL.
