@@ -83,3 +83,23 @@ for k,v in ctr.most_common(10):
     print(f'{k}: {v}')
 PY
 ```
+
+---
+
+## 8. Security Validation (Credential/Secret Scan)
+
+### Objective
+Verify that no live secrets or credentials are present in the repository prior to submission.
+
+### Command
+```bash
+rg -n --hidden -S "(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|aws_secret_access_key|aws_access_key_id|BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9]{36}|xox[baprs]-|AIza[0-9A-Za-z\-_]{35}|sk-[A-Za-z0-9]{20,}|client_secret)" .
+```
+
+### Expected Result
+- No real key material returned.
+- Any hits should be template placeholders, tests, or intentionally insecure demo samples with non-usable values.
+
+### Submission Note
+This repository is maintained with placeholder-only environment files and redacted demo snippets to avoid accidental credential disclosure.
+

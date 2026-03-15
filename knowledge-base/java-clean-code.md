@@ -292,3 +292,11 @@ class UserServiceTest {
 ```
 
 **Reference:** JUnit 5 User Guide; Mockito Documentation
+
+---
+
+## 15. Secret Hygiene Note
+
+All Java examples in this document must use non-sensitive placeholder strings only.
+Do not include real credentials, JWTs, private keys, or production endpoints in documentation samples.
+

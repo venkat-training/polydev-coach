@@ -335,3 +335,38 @@ MIT — see [LICENSE](LICENSE)
 - [Amazon Bedrock](https://aws.amazon.com/bedrock/) — managed AI infrastructure
 - [Amazon Nova](https://aws.amazon.com/bedrock/nova/) — the model family powering all 5 agents
 - Built for the [Amazon Nova Hackathon](https://amazon-nova.devpost.com/)
+
+---
+
+## 🔐 Security & Secret Hygiene (Submission Gate)
+
+PolyDev Coach is prepared for hackathon submission with **no committed live credentials**.
+
+### What was verified
+- Repository scanned for common secret patterns (AWS keys, private keys, GitHub/Slack/API tokens).
+- `.env` files in this repository are templates (`.env.example`) and contain placeholder values only.
+- Demo snippets shown in the UI are intentionally insecure examples for detection testing, and are now explicitly redacted placeholders (non-usable values).
+
+### Recommended pre-submission checks
+Run these before uploading to Devpost:
+
+```bash
+rg -n --hidden -S "(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9]{36}|xox[baprs]-|AIza[0-9A-Za-z\-_]{35}|sk-[A-Za-z0-9]{20,})" .
+```
+
+If this command returns only docs/tests/example placeholders, you're good to submit.
+
+## 🏁 Hackathon Submission Readiness Checklist
+
+- [x] Multi-agent Nova architecture clearly documented
+- [x] Bedrock/Nova usage is central to product behavior
+- [x] UI + backend working end-to-end
+- [x] Security scan performed for credential leaks
+- [x] Validation/testing document included
+- [ ] Add final screenshots for Python, Java, and MuleSoft runs in your Devpost submission
+
+## 💡 Suggested Final Improvements
+- Add a lightweight CI secret scan step (e.g., `gitleaks` or `trufflehog`) to block accidental commits.
+- Add one short demo video (60–90 seconds) showing all 3 language flows.
+- Include one benchmark table (latency + estimated cost per review) in the submission for stronger judging impact.
+

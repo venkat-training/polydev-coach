@@ -219,3 +219,11 @@ The mulesoft_package_validator (integrated into PolyDev Coach) checks for:
 - **Object Store**: Use persistent Object Store for state that must survive restarts
 - **Async Processing**: Use `<async>` scope for fire-and-forget operations that don't
   need a response
+
+---
+
+## 13. Secret Hygiene Note
+
+All MuleSoft XML/YAML snippets in this guide must remain example-only and non-sensitive.
+Use placeholders for usernames/passwords and never include live secure-property keys or encrypted blobs from production environments.
+

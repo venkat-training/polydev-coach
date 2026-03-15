@@ -257,3 +257,11 @@ def test_get_user_returns_user_when_exists():
 ```
 
 **Reference:** pytest documentation; unittest.mock
+
+---
+
+## 16. Secret Hygiene Note
+
+All code examples in this knowledge base must use placeholders only.
+Never include real API keys, access tokens, passwords, certificates, or customer data in example snippets.
+
