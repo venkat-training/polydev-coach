@@ -215,19 +215,45 @@ function DiffViewer({ original, refactored }) {
 
 // ─── Expandable issue card with Nova coaching insight ─────────────────────────
 function normalizeIssueKey(value) {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 }
 
-function IssueCard({ issue, coaching, issueIndex, issueCount }) {
-  const [expanded, setExpanded] = useState(false);
-  const issueKey = normalizeIssueKey(issue.id);
-  let insight = coaching?.find((c) => normalizeIssueKey(c.issue_id) === issueKey);
+function extractIssueOrdinal(value) {
+  const digits = String(value ?? "").match(/(\d+)/g);
+  if (!digits || digits.length === 0) return "";
+  return String(Number(digits[digits.length - 1]));
+}
 
-  // Fallback: some model responses renumber issue IDs but preserve ordering.
-  // If every issue has a coaching item, map by index as a best-effort recovery.
-  if (!insight && Array.isArray(coaching) && coaching.length === issueCount) {
-    insight = coaching[issueIndex];
+function resolveCoachingInsight(issue, coaching, issueIndex) {
+  if (!Array.isArray(coaching) || coaching.length === 0) return null;
+
+  const issueKey = normalizeIssueKey(issue.id);
+  const issueOrdinal = extractIssueOrdinal(issue.id);
+
+  const directMatch = coaching.find((item) => {
+    const coachingId = item?.issue_id ?? item?.issueId ?? item?.id;
+    return normalizeIssueKey(coachingId) === issueKey;
+  });
+  if (directMatch) return directMatch;
+
+  if (issueOrdinal) {
+    const ordinalMatch = coaching.find((item) => {
+      const coachingId = item?.issue_id ?? item?.issueId ?? item?.id;
+      return extractIssueOrdinal(coachingId) === issueOrdinal;
+    });
+    if (ordinalMatch) return ordinalMatch;
   }
+
+  // Best effort: if ordering is preserved, surface coaching by index.
+  return coaching[issueIndex] || null;
+}
+
+function IssueCard({ issue, coaching, issueIndex }) {
+  const [expanded, setExpanded] = useState(false);
+  const insight = resolveCoachingInsight(issue, coaching, issueIndex);
 
   return (
     <div className="rounded-xl border border-slate-700/60 bg-slate-800/50 overflow-hidden transition-all duration-200 hover:border-slate-600">
@@ -383,7 +409,11 @@ export default function App() {
 
   // Derived data
   const issues   = result?.analysis?.issues || [];
-  const coaching = result?.coaching?.coaching || [];
+  const coaching = useMemo(() => {
+    if (Array.isArray(result?.coaching?.coaching)) return result.coaching.coaching;
+    if (Array.isArray(result?.coaching)) return result.coaching;
+    return [];
+  }, [result]);
   const changes  = result?.refactor?.changes_made || [];
   const validation = result?.validation || {};
 
@@ -597,7 +627,6 @@ export default function App() {
                           issue={issue}
                           coaching={coaching}
                           issueIndex={idx}
-                          issueCount={issues.length}
                         />
                       ))
                     )}
