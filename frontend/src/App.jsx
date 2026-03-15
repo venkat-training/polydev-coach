@@ -3,7 +3,7 @@ import { useState, useCallback, useRef } from "react";
 // ─── API base URL ─────────────────────────────────────────────────────────────
 // Set VITE_API_URL at build time to point to your AWS App Runner backend URL.
 // Falls back to localhost for local development.
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 // ─── Sample code snippets (pre-loaded with intentional issues for demo) ───────
 const SAMPLE_CODE = {
@@ -299,6 +299,8 @@ export default function App() {
     setLoading(true);
     setError(null);
     setResult(null);
+    console.log("API_BASE:", API_BASE);      
+    console.log("Calling:", `${API_BASE}/api/review`);
     try {
       const res = await fetch(`${API_BASE}/api/review`, {
         method: "POST",

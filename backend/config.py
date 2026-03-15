@@ -5,6 +5,8 @@ Replaces config.py for the Amazon Nova hackathon.
 import os
 from dataclasses import dataclass, field
 from typing import List
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
 
 
 @dataclass

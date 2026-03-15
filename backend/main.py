@@ -55,10 +55,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS - GitHub Codespaces frontend (3000) -> FastAPI backend (8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origin_regex=r"https://.*-3000\.app\.github\.dev",
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
