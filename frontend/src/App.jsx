@@ -15,8 +15,8 @@ const SAMPLE_CODE = {
 import os
 
 # BAD: hardcoded secret — should use os.environ
-password = "super_secret_123"
-API_KEY = "sk-abc123xyz"
+password = "<HARDCODED_SECRET_DO_NOT_USE>"
+API_KEY = "<HARDCODED_API_KEY_DO_NOT_USE>"
 
 def fetch_user_data(user_id):
     # BAD: no error handling on external call
@@ -43,7 +43,7 @@ import java.util.*;
 
 public class UserService {
     // BAD: hardcoded credential
-    private static String DB_PASSWORD = "admin123";
+    private static String DB_PASSWORD = "<HARDCODED_DB_PASSWORD_DO_NOT_USE>";
     private static Connection conn;
 
     public List<String> getAllUsers() {
@@ -72,7 +72,7 @@ public class UserService {
   <!-- BAD: hardcoded credentials — use \${secure::db.password} -->
   <db:config name="Database_Config">
     <db:my-sql-connection host="localhost" port="3306"
-                          user="admin" password="hardcoded_password123"
+                          user="<HARDCODED_USER>" password="<HARDCODED_PASSWORD_DO_NOT_USE>"
                           database="production_db"/>
   </db:config>
 

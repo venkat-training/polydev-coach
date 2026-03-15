@@ -332,3 +332,21 @@ The self-correcting pipeline (validator + retry loop) is a genuinely novel archi
 - [ ] **Public GitHub repo** — with clear README
 - [ ] **Project description** — use the story doc already written
 - [ ] **Optional bonus** — publish a blog post on builder.aws.com for $200 AWS credits
+
+---
+
+## 12. Security Posture for Submission
+
+For hackathon readiness, ensure these are demonstrated:
+
+- No hardcoded credentials committed to Git history or source files.
+- Runtime secrets are supplied via environment variables / IAM roles (preferred).
+- Bedrock access is scoped to minimum required permissions.
+- CloudFront/App Runner endpoints are configured with least-privilege and CORS allow-listing.
+
+### Recommended AWS hardening (quick wins)
+1. Prefer IAM role credentials over static AWS keys in local `.env`.
+2. Store sensitive runtime values in **AWS Secrets Manager** or **SSM Parameter Store**.
+3. Enable CloudWatch alarms for abnormal Bedrock call spikes and App Runner 5xx rates.
+4. Add automated secret scanning in CI before deployment.
+
