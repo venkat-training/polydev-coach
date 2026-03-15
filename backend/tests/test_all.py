@@ -14,6 +14,8 @@ Tests cover:
 """
 import os
 import sys
+import io
+import zipfile
 import pytest
 
 # ── Stub AWS credentials so config.py loads without real keys ─────────────────
@@ -288,3 +290,66 @@ class TestAPIEndpoints:
                 json={"code": "x = 1\n" * 10000, "language": "python"},
             )
         assert response.status_code == 413
+
+    def test_mulesoft_project_endpoint_passes_precomputed_static_result(self, monkeypatch):
+        """Project zip review should reuse precomputed static_result in pipeline call."""
+        from fastapi.testclient import TestClient
+        import main as main_module
+
+        expected_static = {
+            "issues": [{"id": "MULE-SEC-001", "severity": "CRITICAL"}],
+            "issue_count": 1,
+            "overall_risk": "HIGH",
+            "raw_validator_output": {"security_warnings": [{"issue": "Hardcoded password"}]},
+        }
+
+        call_args = {}
+
+        def fake_static_analysis(project_path):
+            return expected_static
+
+        async def fake_pipeline(code, language, filename="", static_result=None):
+            call_args["language"] = language
+            call_args["filename"] = filename
+            call_args["static_result"] = static_result
+            return {
+                "status": "success",
+                "language": language,
+                "analysis": {
+                    "language": language,
+                    "issues": expected_static["issues"],
+                    "issue_count": 1,
+                    "overall_risk": "HIGH",
+                },
+                "coaching": {"coaching": []},
+                "refactor": {"refactored_code": "", "changes_made": [], "confidence": 0.0},
+                "validation": {
+                    "correctness_score": 100,
+                    "logic_preserved": True,
+                    "issues_addressed": 100,
+                    "flags": [],
+                    "recommend_regenerate": False,
+                },
+                "processing_time_seconds": 0.01,
+            }
+
+        monkeypatch.setattr(main_module, "run_static_analysis_on_project", fake_static_analysis)
+        monkeypatch.setattr(main_module, "run_review_pipeline", fake_pipeline)
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("src/main/mule/main.xml", "<mule></mule>")
+        zip_buffer.seek(0)
+
+        with TestClient(main_module.app) as client:
+            response = client.post(
+                "/api/review/mulesoft-project",
+                files={"file": ("project.zip", zip_buffer.getvalue(), "application/zip")},
+            )
+
+        assert response.status_code == 200
+        assert call_args["language"] == "mulesoft"
+        assert call_args["filename"] == "project.zip"
+        assert call_args["static_result"] == expected_static
+        data = response.json()
+        assert data["analysis"]["mulesoft_static"] == expected_static["raw_validator_output"]

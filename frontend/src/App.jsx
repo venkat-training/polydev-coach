@@ -214,9 +214,20 @@ function DiffViewer({ original, refactored }) {
 }
 
 // ─── Expandable issue card with Nova coaching insight ─────────────────────────
-function IssueCard({ issue, coaching }) {
+function normalizeIssueKey(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function IssueCard({ issue, coaching, issueIndex, issueCount }) {
   const [expanded, setExpanded] = useState(false);
-  const insight = coaching?.find((c) => c.issue_id === issue.id);
+  const issueKey = normalizeIssueKey(issue.id);
+  let insight = coaching?.find((c) => normalizeIssueKey(c.issue_id) === issueKey);
+
+  // Fallback: some model responses renumber issue IDs but preserve ordering.
+  // If every issue has a coaching item, map by index as a best-effort recovery.
+  if (!insight && Array.isArray(coaching) && coaching.length === issueCount) {
+    insight = coaching[issueIndex];
+  }
 
   return (
     <div className="rounded-xl border border-slate-700/60 bg-slate-800/50 overflow-hidden transition-all duration-200 hover:border-slate-600">
@@ -580,8 +591,14 @@ export default function App() {
                         ✅ No issues found — code looks clean!
                       </div>
                     ) : (
-                      issues.map((issue) => (
-                        <IssueCard key={issue.id} issue={issue} coaching={coaching} />
+                      issues.map((issue, idx) => (
+                        <IssueCard
+                          key={issue.id}
+                          issue={issue}
+                          coaching={coaching}
+                          issueIndex={idx}
+                          issueCount={issues.length}
+                        />
                       ))
                     )}
                   </>

@@ -184,6 +184,7 @@ async def review_mulesoft_project(file: UploadFile = File(...)):
             code=summary_code,
             language="mulesoft",
             filename=file.filename,
+            static_result=static_result,
         )
         # Attach full static output for UI
         result["analysis"]["mulesoft_static"] = static_result.get("raw_validator_output", {})

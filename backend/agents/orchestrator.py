@@ -52,6 +52,7 @@ async def run_review_pipeline(
     code: str,
     language: str,
     filename: str = "",
+    static_result: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """
     Full multi-agent review pipeline.
@@ -68,7 +69,10 @@ async def run_review_pipeline(
 
     # ── Step 1: Static Analysis ───────────────────────────────────────────────
     logger.info("Step 1: Running static analysis for language=%s", language)
-    static_result = _run_static_analysis(code, language)
+    if static_result is None:
+        static_result = _run_static_analysis(code, language)
+    else:
+        logger.info("Using precomputed static analysis result for language=%s", language)
     static_issues = static_result.get("issues", [])
     logger.info("Static analysis found %d issues", len(static_issues))
 
